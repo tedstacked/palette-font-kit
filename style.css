@@ -355,6 +355,7 @@ button.danger { border-color: color-mix(in srgb, var(--ui-danger) 50%, var(--ui-
   padding: 18px;
   overflow: hidden;
   transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  min-height: 220px;
 }
 .preview h1 {
   margin: 0 0 6px 0;

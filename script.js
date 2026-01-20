@@ -86,6 +86,8 @@ const el = {
   toast: $("#toast"),
 
   btnShuffle: $("#btnShuffle"),
+  btnShuffleColors: $("#btnShuffleColors"),
+  btnShuffleFonts: $("#btnShuffleFonts"),
   btnSave: $("#btnSave"),
   btnCopyCSS: $("#btnCopyCSS"),
   btnExportJSON: $("#btnExportJSON"),
@@ -378,25 +380,30 @@ function renderPalette(palette) {
 }
 
 function renderPreview(fonts) {
-  // NOTE: no hard-coded colors here (dark-mode bug fix). Colors come from CSS vars.
+  // Apply palette colors to text and accents (keep white background)
+  const colors = state.palette;
+  const headingColor = colors[0] || '#111827';
+  const bodyColor = colors[1] || colors[0] || '#374151';
+  const accentColor = colors[2] || colors[1] || colors[0] || '#6366f1';
+
   el.preview.style.fontFamily = "var(--gen-body)";
   el.preview.innerHTML = `
     <div style="display:grid; gap:10px;">
       <div>
-        <h1 style="font-family: var(--gen-heading);">Aesthetic, instantly.</h1>
-        <div class="subhead" style="font-family: var(--gen-body);">
+        <h1 style="font-family: var(--gen-heading); color: ${headingColor};">Aesthetic, instantly.</h1>
+        <div class="subhead" style="font-family: var(--gen-body); color: ${bodyColor};">
           Live preview (neutral background). Palette is displayed separately.
         </div>
       </div>
-      <p style="font-family: var(--gen-body);">
+      <p style="font-family: var(--gen-body); color: ${bodyColor};">
         This pairing is chosen from a curated set to keep results consistently high-quality.
         Export CSS variables for your colors and use the selected font families in your project.
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <button type="button" class="samplebtn" style="font-family: var(--gen-body);">
+        <button type="button" class="samplebtn" style="font-family: var(--gen-body); background: ${accentColor}; color: white; border-color: ${accentColor};">
           Sample button
         </button>
-        <span class="previewHint" style="font-size:13px; color: var(--preview-muted);">
+        <span class="previewHint" style="font-size:13px; color: ${bodyColor};">
           Tip: click any swatch to copy its HEX value.
         </span>
       </div>
@@ -544,6 +551,32 @@ function shuffleAll() {
   showToast("Shuffled");
 }
 
+function shuffleColors() {
+  state.presetName = "Random";
+  setPresetChips(null);
+
+  state.palette = getRandomPalette();
+
+  renderPalette(state.palette);
+  renderPreview(state.fonts);
+  renderExports();
+
+  showToast("Colors shuffled");
+}
+
+function shuffleFonts() {
+  state.presetName = "Random";
+  setPresetChips(null);
+
+  state.fonts = pickFontPair();
+
+  applyFonts(state.fonts);
+  renderPreview(state.fonts);
+  renderExports();
+
+  showToast("Fonts shuffled");
+}
+
 function saveFavorite() {
   const sig = signatureOf(state.palette, state.fonts);
   const exists = state.favorites.some(f => signatureOf(f.palette, f.fonts) === sig);
@@ -617,6 +650,8 @@ function applyPreset(name) {
 // ---------- Events ----------
 function wireEvents() {
   el.btnShuffle.addEventListener("click", shuffleAll);
+  el.btnShuffleColors.addEventListener("click", shuffleColors);
+  el.btnShuffleFonts.addEventListener("click", shuffleFonts);
   el.btnSave.addEventListener("click", saveFavorite);
   el.btnCopyCSS.addEventListener("click", copyCSSVars);
   el.btnExportJSON.addEventListener("click", downloadJSON);

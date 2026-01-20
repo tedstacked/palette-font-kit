@@ -1,10 +1,1499 @@
-<html lang="en">
+<!--
+  Random Aesthetic Generator (Static, No Frameworks)
+  Audience: hiring managers/recruiters + working designers/devs
+  Notes:
+  - App shell uses Inter + Source Sans 3 (neutral UI chrome)
+  - Generated palette + preview uses selected Google Fonts pairing
+  - Preview background stays neutral (does NOT change with generated colors)
+  - WCAG AA contrast checks for each swatch vs white/black
+  - LocalStorage:
+      - aesthetic.favorites (array)
+      - aesthetic.settings (theme preference)
+  - Keyboard shortcuts:
+      Space = Shuffle, S = Save, C = Copy CSS variables
+-->
+<!doctype html>
+<html lang="en" class="theme-light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Random Aesthetic Generator</title>
+
+  <!-- UI fonts only (do not preload all generated fonts) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Inter (UI headings) + Source Sans 3 (UI body) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =========================================================
+       UI CHROME DESIGN SYSTEM (neutral; generated output is focus)
+       Light: #f9fafb, Dark: #1e1e1e, Accent: indigo #6366f1
+       ========================================================= */
+    :root {
+      --ui-bg: #f9fafb;
+      --ui-surface: #ffffff;
+      --ui-border: rgba(17, 24, 39, 0.12);
+      --ui-text: #111827;
+      --ui-muted: #4b5563;
+      --ui-muted-2: #6b7280;
+      --ui-shadow: 0 10px 30px rgba(17,24,39,0.08);
+      --ui-radius: 16px;
+      --ui-radius-sm: 12px;
+      --ui-accent: #6366f1;
+      --ui-accent-hover: #4f46e5;
+      --ui-accent-ring: rgba(99, 102, 241, 0.35);
+      --ui-danger: #ef4444;
+
+      --container: 1120px;
+
+      /* Preview remains neutral in both modes. */
+      --preview-bg: #ffffff;
+      --preview-border: rgba(17, 24, 39, 0.10);
+
+      /* Motion */
+      --dur: 180ms;
+      --ease: cubic-bezier(.2,.8,.2,1);
+    }
+
+    html.theme-dark {
+      --ui-bg: #1e1e1e;
+      --ui-surface: #242424;
+      --ui-border: rgba(255, 255, 255, 0.10);
+      --ui-text: rgba(255, 255, 255, 0.92);
+      --ui-muted: rgba(255, 255, 255, 0.72);
+      --ui-muted-2: rgba(255, 255, 255, 0.58);
+      --ui-shadow: 0 12px 28px rgba(0,0,0,0.35);
+
+      /* Keep preview neutral; do not darken to avoid affecting generated output perception. */
+      --preview-bg: #ffffff;
+      --preview-border: rgba(17, 24, 39, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a { color: inherit; }
+    :focus-visible {
+      outline: 3px solid var(--ui-accent-ring);
+      outline-offset: 3px;
+      border-radius: 10px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      background: var(--ui-surface);
+      border: 1px solid var(--ui-border);
+      padding: 10px 12px;
+      border-radius: 12px;
+      box-shadow: var(--ui-shadow);
+      transform: translateY(-200%);
+      transition: transform var(--dur) var(--ease);
+      z-index: 50;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: color-mix(in srgb, var(--ui-bg) 85%, transparent);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
+    }
+
+    .wrap {
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 18px 18px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .brand h1 {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+      font-weight: 700;
+    }
+    .brand p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--ui-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-surface);
+      padding: 10px 12px;
+      border-radius: 999px;
+      box-shadow: 0 6px 16px rgba(17,24,39,0.06);
+    }
+    .toggle label {
+      font-size: 13px;
+      color: var(--ui-muted);
+      user-select: none;
+    }
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 26px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--ui-border) 70%, transparent);
+      border: 1px solid var(--ui-border);
+      cursor: pointer;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--ui-surface);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.12);
+      transform: translateX(0);
+      transition: transform var(--dur) var(--ease);
+    }
+    html.theme-dark .switch::after { transform: translateX(18px); }
+
+    main .wrap { padding-top: 22px; padding-bottom: 28px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--ui-surface);
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius);
+      box-shadow: var(--ui-shadow);
+      padding: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .card .sub {
+      margin: -6px 0 12px 0;
+      font-size: 13px;
+      color: var(--ui-muted);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btnrow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button, .btn {
+      border: 1px solid var(--ui-border);
+      background: var(--ui-surface);
+      color: var(--ui-text);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+      box-shadow: 0 6px 14px rgba(17,24,39,0.06);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    button:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-border)); }
+    button:active { transform: translateY(0); }
+    button.primary {
+      background: var(--ui-accent);
+      color: white;
+      border-color: color-mix(in srgb, var(--ui-accent) 80%, black);
+      box-shadow: 0 10px 18px rgba(99,102,241,0.22);
+    }
+    button.primary:hover { background: var(--ui-accent-hover); }
+    button.danger {
+      border-color: color-mix(in srgb, var(--ui-danger) 50%, var(--ui-border));
+    }
+
+    .kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12px;
+      color: color-mix(in srgb, var(--ui-text) 72%, transparent);
+      background: color-mix(in srgb, var(--ui-border) 45%, transparent);
+      border: 1px solid var(--ui-border);
+      padding: 2px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+    }
+
+    .presetbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .chip {
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid var(--ui-border);
+      background: color-mix(in srgb, var(--ui-surface) 90%, transparent);
+      cursor: pointer;
+      transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+    }
+    .chip:hover { border-color: color-mix(in srgb, var(--ui-accent) 40%, var(--ui-border)); transform: translateY(-1px); }
+    .chip[aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-border));
+      box-shadow: 0 10px 18px rgba(99,102,241,0.12);
+    }
+
+    /* Palette swatches */
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .swatch {
+      flex: 1 1 140px;
+      min-width: 140px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--ui-border);
+      background: var(--ui-surface);
+      transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), opacity var(--dur) var(--ease);
+    }
+    .swatch button {
+      all: unset;
+      display: grid;
+      grid-template-rows: 70px auto;
+      width: 100%;
+      cursor: pointer;
+    }
+    .swatch button:focus-visible {
+      outline: 3px solid var(--ui-accent-ring);
+      outline-offset: 3px;
+      border-radius: 14px;
+    }
+    .swatch-color { width: 100%; height: 70px; }
+    .swatch-meta {
+      padding: 10px 10px 12px 10px;
+      display: grid;
+      gap: 8px;
+    }
+    .hexrow {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .hex {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .copyhint {
+      font-size: 12px;
+      color: var(--ui-muted-2);
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--ui-border);
+      font-size: 12px;
+      color: var(--ui-muted);
+      background: color-mix(in srgb, var(--ui-surface) 90%, transparent);
+    }
+    .badge strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 700;
+      font-size: 12px;
+      color: color-mix(in srgb, var(--ui-text) 85%, transparent);
+    }
+    .badge.pass { border-color: color-mix(in srgb, #22c55e 45%, var(--ui-border)); }
+    .badge.fail { border-color: color-mix(in srgb, #ef4444 45%, var(--ui-border)); }
+
+    /* Fonts & preview */
+    .fontnames {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 520px) {
+      .fontnames { grid-template-columns: 1fr; }
+    }
+
+    .fontpill {
+      border: 1px solid var(--ui-border);
+      border-radius: 14px;
+      padding: 10px 12px;
+      background: color-mix(in srgb, var(--ui-surface) 92%, transparent);
+      display: grid;
+      gap: 6px;
+    }
+    .fontpill .label {
+      font-size: 12px;
+      color: var(--ui-muted-2);
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .fontpill .value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ui-text);
+      word-break: break-word;
+    }
+
+    .preview {
+      border-radius: var(--ui-radius);
+      border: 1px solid var(--preview-border);
+      background: var(--preview-bg);
+      padding: 18px;
+      overflow: hidden;
+      position: relative;
+      transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    }
+
+    .preview h1 {
+      margin: 0 0 6px 0;
+      font-size: clamp(22px, 3vw, 34px);
+      letter-spacing: -0.02em;
+    }
+    .preview .subhead {
+      margin: 0 0 12px 0;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .preview p {
+      margin: 0 0 14px 0;
+      color: #111827;
+      font-size: 15px;
+      max-width: 72ch;
+    }
+    .preview .samplebtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(17, 24, 39, 0.20);
+      background: rgba(17, 24, 39, 0.06);
+      color: #111827;
+      cursor: pointer;
+      transition: transform var(--dur) var(--ease);
+    }
+    .preview .samplebtn:hover { transform: translateY(-1px); }
+    .preview .samplebtn:focus-visible { outline: 3px solid rgba(99,102,241,0.40); outline-offset: 3px; }
+
+    /* Export blocks */
+    .export {
+      display: grid;
+      gap: 10px;
+    }
+    .codebox {
+      border: 1px solid var(--ui-border);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--ui-surface) 88%, transparent);
+      padding: 12px;
+      overflow: auto;
+      max-height: 220px;
+    }
+    pre {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color: color-mix(in srgb, var(--ui-text) 88%, transparent);
+      white-space: pre;
+    }
+
+    /* Favorites */
+    .favlist {
+      display: grid;
+      gap: 10px;
+    }
+    .favitem {
+      border: 1px solid var(--ui-border);
+      border-radius: 14px;
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+      background: color-mix(in srgb, var(--ui-surface) 92%, transparent);
+    }
+    .favrow {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .favmeta {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .favmeta .title {
+      font-size: 13px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .favmeta .desc {
+      font-size: 12px;
+      color: var(--ui-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .favswatches {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .favdot {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(17, 24, 39, 0.18);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: var(--ui-surface);
+      border: 1px solid var(--ui-border);
+      box-shadow: var(--ui-shadow);
+      font-size: 13px;
+      color: var(--ui-text);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+      z-index: 60;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    footer {
+      border-top: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
+      padding: 16px 0 22px;
+      color: var(--ui-muted);
+      font-size: 13px;
+    }
+    footer .wrap {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    /* Simple enter/refresh animation (respects reduced motion) */
+    .anim-in {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    .anim-in.is-on {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; }
+      .anim-in, .anim-in.is-on { opacity: 1; transform: none; transition: none !important; }
+      button, .chip, .swatch, .preview, .toast { transition: none !important; }
+    }
+  </style>
 </head>
+
 <body>
-    
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header>
+    <div class="wrap topbar" role="banner">
+      <div class="brand" aria-label="App header">
+        <h1>Random Aesthetic Generator</h1>
+        <p>Generate cohesive palettes + Google Fonts pairings. Save favorites. Export CSS/JSON.</p>
+      </div>
+
+      <div class="toggle" role="group" aria-label="Theme toggle">
+        <label for="themeToggle">UI mode</label>
+        <!-- Using a checkbox for accessibility; styled as a switch. -->
+        <input id="themeToggle" type="checkbox" aria-label="Toggle dark mode" hidden />
+        <button type="button" class="switch" id="themeSwitch" aria-label="Toggle dark mode" aria-pressed="false"></button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <div class="wrap">
+      <!-- Controls card -->
+      <section class="card anim-in" id="controlsCard" aria-labelledby="controlsTitle">
+        <h2 id="controlsTitle">Controls</h2>
+        <p class="sub">Shuffle palette + fonts together. Save favorites and export to CSS variables or JSON.</p>
+
+        <div class="controls">
+          <div class="btnrow" role="group" aria-label="Primary actions">
+            <button type="button" class="primary" id="btnShuffle">
+              Shuffle <span class="kbd" aria-hidden="true">Space</span>
+            </button>
+            <button type="button" id="btnSave">
+              Save <span class="kbd" aria-hidden="true">S</span>
+            </button>
+            <button type="button" id="btnCopyCSS">
+              Copy CSS <span class="kbd" aria-hidden="true">C</span>
+            </button>
+            <button type="button" id="btnExportJSON">
+              Export JSON
+            </button>
+          </div>
+
+          <div class="presetbar" role="group" aria-label="Curated defaults">
+            <button type="button" class="chip" data-preset="Minimal" aria-pressed="true">Minimal</button>
+            <button type="button" class="chip" data-preset="Playful" aria-pressed="false">Playful</button>
+            <button type="button" class="chip" data-preset="Bold" aria-pressed="false">Bold</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid" aria-label="Generated results and favorites">
+        <div class="leftcol" style="display:grid; gap:18px;">
+          <!-- Palette card -->
+          <section class="card anim-in" id="paletteCard" aria-labelledby="paletteTitle">
+            <h2 id="paletteTitle">Palette</h2>
+            <p class="sub">Click a swatch to copy HEX. Contrast badges show AA normal text pass/fail vs white and black.</p>
+
+            <div class="swatches" id="swatches" role="list" aria-label="Generated color swatches">
+              <!-- injected -->
+            </div>
+          </section>
+
+          <!-- Fonts + preview card -->
+          <section class="card anim-in" id="fontsCard" aria-labelledby="fontsTitle">
+            <h2 id="fontsTitle">Font pairing &amp; preview</h2>
+            <p class="sub">Fonts are lazy-loaded from Google Fonts only when selected. Preview background stays neutral.</p>
+
+            <div class="fontnames" aria-label="Selected font families">
+              <div class="fontpill">
+                <div class="label">Heading font</div>
+                <div class="value" id="headingFontName">—</div>
+              </div>
+              <div class="fontpill">
+                <div class="label">Body font</div>
+                <div class="value" id="bodyFontName">—</div>
+              </div>
+            </div>
+
+            <div class="preview" id="preview" aria-label="Live font preview">
+              <!-- Preview content rendered by JS so we can fully swap font-family without fighting UI styles -->
+            </div>
+          </section>
+
+          <!-- Export preview card (helps recruiters see polish quickly) -->
+          <section class="card anim-in" id="exportCard" aria-labelledby="exportTitle">
+            <h2 id="exportTitle">Export</h2>
+            <p class="sub">Copy-ready CSS variables and JSON for the current combination.</p>
+
+            <div class="export">
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <strong style="font-family:Inter, system-ui; font-size:13px;">CSS variables</strong>
+                  <button type="button" id="btnCopyCSSInline" aria-label="Copy CSS variables">Copy</button>
+                </div>
+                <div class="codebox" aria-label="CSS variables block">
+                  <pre id="cssOut"></pre>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                  <strong style="font-family:Inter, system-ui; font-size:13px;">JSON</strong>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button type="button" id="btnCopyJSON" aria-label="Copy JSON">Copy JSON</button>
+                    <button type="button" id="btnDownloadJSON" aria-label="Download JSON file">Download</button>
+                  </div>
+                </div>
+                <div class="codebox" aria-label="JSON export block">
+                  <pre id="jsonOut"></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Favorites panel -->
+        <aside class="card anim-in" id="favoritesCard" aria-labelledby="favoritesTitle">
+          <h2 id="favoritesTitle">Favorites</h2>
+          <p class="sub">Saved locally (this browser only). Re-apply or delete anytime.</p>
+
+          <div class="favlist" id="favList" aria-live="polite" aria-label="Saved favorites list">
+            <!-- injected -->
+          </div>
+
+          <p id="favEmpty" class="sub" style="display:none; margin-top:12px;">
+            No favorites yet. Press <span class="kbd">S</span> to save the current combo.
+          </p>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div>
+        Keyboard: <span class="kbd">Space</span> Shuffle, <span class="kbd">S</span> Save, <span class="kbd">C</span> Copy CSS
+      </div>
+      <div>
+        Static demo • Google Fonts + WCAG 2.1 AA checks • MIT-style demo license note (no warranty)
+      </div>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script defer>
+    /* =========================================================
+       Random Aesthetic Generator (No frameworks, static only)
+       - Small, pure functions + careful DOM updates
+       - Lazy-load only the chosen Google Fonts (inject <link>)
+       - LocalStorage favorites + theme preference
+       ========================================================= */
+
+    // ---------- Constants / Storage Keys ----------
+    const STORAGE_KEYS = {
+      favorites: "aesthetic.favorites",
+      settings: "aesthetic.settings"
+    };
+
+    // Keep the curated list small (quality > quantity) to ensure pairings remain strong.
+    // Each entry includes the Google Fonts family name and recommended weights.
+    // Trade-off: we only load a couple weights to reduce network + CSS size.
+    const CURATED_FONTS = [
+      { family: "DM Serif Display", weights: [400] },
+      { family: "Playfair Display", weights: [500, 700] },
+      { family: "Fraunces", weights: [400, 700] },
+      { family: "Space Grotesk", weights: [400, 600] },
+      { family: "Plus Jakarta Sans", weights: [400, 600, 700] },
+      { family: "Manrope", weights: [400, 600, 700] },
+      { family: "Inter", weights: [400, 600, 700] }, // also in UI, but safe as generated body too
+      { family: "Work Sans", weights: [400, 600] },
+      { family: "Libre Baskerville", weights: [400, 700] },
+      { family: "Merriweather", weights: [400, 700] },
+      { family: "IBM Plex Sans", weights: [400, 600] },
+      { family: "IBM Plex Serif", weights: [400, 600, 700] },
+      { family: "Crimson Pro", weights: [400, 600, 700] },
+      { family: "Source Sans 3", weights: [400, 600, 700] }, // UI body, ok as generated too
+      { family: "Roboto Slab", weights: [400, 700] }
+    ];
+
+    // Known-good pairings to keep "random" high-quality.
+    // We randomize from this set rather than arbitrary combinations.
+    const GOOD_PAIRINGS = [
+      { heading: "DM Serif Display", body: "Plus Jakarta Sans" },
+      { heading: "Playfair Display", body: "Manrope" },
+      { heading: "Fraunces", body: "Work Sans" },
+      { heading: "IBM Plex Serif", body: "IBM Plex Sans" },
+      { heading: "Libre Baskerville", body: "Source Sans 3" },
+      { heading: "Merriweather", body: "Inter" },
+      { heading: "Space Grotesk", body: "Source Sans 3" },
+      { heading: "Roboto Slab", body: "Plus Jakarta Sans" },
+      { heading: "Crimson Pro", body: "Work Sans" },
+      { heading: "Playfair Display", body: "IBM Plex Sans" }
+    ];
+
+    // Curated default combos so the page does not load empty.
+    // Acceptance criterion: page loads with "Minimal" default applied.
+    const PRESETS = {
+      Minimal: {
+        palette: ["#0B1220", "#111827", "#6B7280", "#E5E7EB", "#F9FAFB"],
+        fonts: { heading: "Space Grotesk", body: "Inter" }
+      },
+      Playful: {
+        palette: ["#FF4D6D", "#FFB703", "#00B4D8", "#7209B7", "#F8FAFC"],
+        fonts: { heading: "Fraunces", body: "Plus Jakarta Sans" }
+      },
+      Bold: {
+        palette: ["#0F172A", "#F97316", "#22C55E", "#38BDF8", "#F8FAFC", "#111827"],
+        fonts: { heading: "DM Serif Display", body: "Manrope" }
+      }
+    };
+
+    // ---------- State ----------
+    const state = {
+      palette: [],
+      fonts: { heading: "", body: "" },
+      presetName: "Minimal",
+      favorites: [],
+      theme: "light"
+    };
+
+    // ---------- DOM ----------
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+    const el = {
+      swatches: $("#swatches"),
+      preview: $("#preview"),
+      headingFontName: $("#headingFontName"),
+      bodyFontName: $("#bodyFontName"),
+      cssOut: $("#cssOut"),
+      jsonOut: $("#jsonOut"),
+      favList: $("#favList"),
+      favEmpty: $("#favEmpty"),
+      toast: $("#toast"),
+
+      btnShuffle: $("#btnShuffle"),
+      btnSave: $("#btnSave"),
+      btnCopyCSS: $("#btnCopyCSS"),
+      btnExportJSON: $("#btnExportJSON"),
+
+      btnCopyCSSInline: $("#btnCopyCSSInline"),
+      btnCopyJSON: $("#btnCopyJSON"),
+      btnDownloadJSON: $("#btnDownloadJSON"),
+
+      themeToggle: $("#themeToggle"),
+      themeSwitch: $("#themeSwitch"),
+      presetChips: $$(".chip[data-preset]")
+    };
+
+    // ---------- Utilities ----------
+    function clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+
+    function showToast(message) {
+      el.toast.textContent = message;
+      el.toast.classList.add("show");
+      window.clearTimeout(showToast._t);
+      showToast._t = window.setTimeout(() => el.toast.classList.remove("show"), 1400);
+    }
+
+    function safeJSONParse(value, fallback) {
+      try { return JSON.parse(value); } catch { return fallback; }
+    }
+
+    function readSettings() {
+      const raw = localStorage.getItem(STORAGE_KEYS.settings);
+      const parsed = raw ? safeJSONParse(raw, {}) : {};
+      return { theme: parsed.theme === "dark" ? "dark" : "light" };
+    }
+
+    function writeSettings(settings) {
+      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+    }
+
+    function loadFavorites() {
+      const raw = localStorage.getItem(STORAGE_KEYS.favorites);
+      const arr = raw ? safeJSONParse(raw, []) : [];
+      // Defensive normalization: ensure each favorite has expected shape.
+      return Array.isArray(arr) ? arr.filter(Boolean).map(normalizeCombo) : [];
+    }
+
+    function saveFavorites(list) {
+      localStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify(list));
+    }
+
+    function normalizeCombo(combo) {
+      const palette = Array.isArray(combo?.palette) ? combo.palette.slice(0, 6) : [];
+      const fonts = combo?.fonts && typeof combo.fonts === "object" ? combo.fonts : {};
+      const heading = typeof fonts.heading === "string" ? fonts.heading : "";
+      const body = typeof fonts.body === "string" ? fonts.body : "";
+      const id = typeof combo?.id === "string" ? combo.id : cryptoRandomId();
+      const createdAt = typeof combo?.createdAt === "number" ? combo.createdAt : Date.now();
+      return { id, createdAt, palette, fonts: { heading, body } };
+    }
+
+    // Use crypto when available for stable IDs.
+    function cryptoRandomId() {
+      if (window.crypto && crypto.getRandomValues) {
+        const bytes = new Uint8Array(8);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
+      return String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+    }
+
+    // Clipboard utility with a fallback for older browsers.
+    async function copyText(text) {
+      // Prefer the async Clipboard API (requires secure context).
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+
+      // Fallback: temporary textarea + execCommand.
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch {
+        document.body.removeChild(ta);
+        return false;
+      }
+    }
+
+    function downloadTextFile(filename, text, mime = "application/json") {
+      const blob = new Blob([text], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ---------- Palette Generation ----------
+    function getRandomPalette() {
+      // Strategy:
+      // - Choose a palette "family" (minimal, playful, bold-ish) by HSL ranges.
+      // - Generate 4–6 colors with controlled saturation/lightness variety.
+      // Trade-off: not every palette will be perfect, but constraints keep it cohesive.
+      const count = randInt(4, 6);
+
+      const mode = choice(["muted", "vibrant", "bold"]);
+      const baseHue = randFloat(0, 360);
+
+      const colors = [];
+      for (let i = 0; i < count; i++) {
+        const hueJitter = (i === 0 ? 0 : randFloat(-35, 35));
+        const h = (baseHue + hueJitter + 360) % 360;
+
+        let s, l;
+        if (mode === "muted") {
+          s = randFloat(18, 38);
+          l = randFloat(25, 92);
+        } else if (mode === "vibrant") {
+          s = randFloat(55, 80);
+          l = randFloat(35, 88);
+        } else { // bold
+          s = randFloat(45, 78);
+          // Bold leans toward higher contrast mix (darks + brights)
+          l = (i === 0) ? randFloat(10, 22) : randFloat(30, 88);
+        }
+
+        // Nudge at least one near-dark and one near-light for palette usability.
+        if (i === 0 && mode !== "vibrant") l = randFloat(10, 18);
+        if (i === count - 1) l = randFloat(90, 97);
+
+        colors.push(hslToHex(h, s, l));
+      }
+
+      // De-dupe and ensure count (edge case: similar colors can collide).
+      const unique = [];
+      for (const c of colors) if (!unique.includes(c)) unique.push(c);
+      while (unique.length < count) unique.push(hslToHex((baseHue + randFloat(-60, 60) + 360) % 360, randFloat(25, 75), randFloat(25, 92)));
+
+      return unique.slice(0, count);
+    }
+
+    function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+    function randFloat(min, max) { return Math.random() * (max - min) + min; }
+    function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    // HSL -> HEX helper (no libs).
+    function hslToHex(h, s, l) {
+      s /= 100;
+      l /= 100;
+
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = l - c / 2;
+
+      let r = 0, g = 0, b = 0;
+      if (h >= 0 && h < 60) { r = c; g = x; b = 0; }
+      else if (h < 120) { r = x; g = c; b = 0; }
+      else if (h < 180) { r = 0; g = c; b = x; }
+      else if (h < 240) { r = 0; g = x; b = c; }
+      else if (h < 300) { r = x; g = 0; b = c; }
+      else { r = c; g = 0; b = x; }
+
+      const R = Math.round((r + m) * 255);
+      const G = Math.round((g + m) * 255);
+      const B = Math.round((b + m) * 255);
+
+      return "#" + [R, G, B].map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+    }
+
+    // ---------- Font Pairing ----------
+    function pickFontPair() {
+      // Choose from known-good pairs to maintain quality.
+      const pair = choice(GOOD_PAIRINGS);
+
+      // Small safety: if heading == body (shouldn't happen), re-pick once.
+      if (pair.heading === pair.body) return choice(GOOD_PAIRINGS);
+
+      return { heading: pair.heading, body: pair.body };
+    }
+
+    function getFontMeta(family) {
+      return CURATED_FONTS.find(f => f.family === family) || { family, weights: [400, 700] };
+    }
+
+    function applyFonts(fonts) {
+      // Lazy-load via <link> injection.
+      // We keep a single managed <link id="gf-generated"> to avoid uncontrolled growth.
+      const headingMeta = getFontMeta(fonts.heading);
+      const bodyMeta = getFontMeta(fonts.body);
+
+      const families = [headingMeta, bodyMeta].map(meta => {
+        const fam = meta.family.replace(/ /g, "+");
+        const w = meta.weights.join(";");
+        return `family=${encodeURIComponent(meta.family).replace(/%20/g, "+")}:wght@${w}`;
+      });
+
+      // display=swap for performance and reduced layout shift.
+      const href = `https://fonts.googleapis.com/css2?${families.join("&")}&display=swap`;
+
+      let link = document.getElementById("gf-generated");
+      if (!link) {
+        link = document.createElement("link");
+        link.id = "gf-generated";
+        link.rel = "stylesheet";
+        document.head.appendChild(link);
+      }
+
+      // Only update if changed (prevents redundant reflows / network).
+      if (link.getAttribute("href") !== href) link.setAttribute("href", href);
+
+      // Apply to preview only, never the UI chrome.
+      // Quotes protect family names with spaces.
+      el.preview.style.setProperty("--gen-heading", `"${fonts.heading}", system-ui, -apple-system, Segoe UI, Roboto, Arial, serif`);
+      el.preview.style.setProperty("--gen-body", `"${fonts.body}", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif`);
+    }
+
+    // ---------- Contrast Checker (WCAG 2.1) ----------
+    function checkContrast(hex, againstHex) {
+      // Returns contrast ratio (1..21).
+      const L1 = relativeLuminance(hexToRgb(hex));
+      const L2 = relativeLuminance(hexToRgb(againstHex));
+      const lighter = Math.max(L1, L2);
+      const darker = Math.min(L1, L2);
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    function hexToRgb(hex) {
+      const h = hex.replace("#", "").trim();
+      const full = h.length === 3 ? h.split("").map(ch => ch + ch).join("") : h;
+      const n = parseInt(full, 16);
+      return {
+        r: (n >> 16) & 255,
+        g: (n >> 8) & 255,
+        b: n & 255
+      };
+    }
+
+    function relativeLuminance({ r, g, b }) {
+      // WCAG: convert sRGB to linear then luminance.
+      const srgb = [r, g, b].map(v => v / 255);
+      const lin = srgb.map(c => (c <= 0.03928) ? (c / 12.92) : Math.pow((c + 0.055) / 1.055, 2.4));
+      return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+    }
+
+    function aaNormalPass(ratio) {
+      // WCAG 2.1 AA for normal text: >= 4.5:1
+      return ratio >= 4.5;
+    }
+
+    // ---------- Rendering ----------
+    function renderPalette(palette) {
+      // Use a DocumentFragment for performance and to minimize layout thrash.
+      const frag = document.createDocumentFragment();
+
+      palette.forEach((hex, idx) => {
+        const ratioWhite = checkContrast(hex, "#FFFFFF");
+        const ratioBlack = checkContrast(hex, "#000000");
+
+        const passWhite = aaNormalPass(ratioWhite);
+        const passBlack = aaNormalPass(ratioBlack);
+
+        const item = document.createElement("div");
+        item.className = "swatch";
+        item.setAttribute("role", "listitem");
+
+        // Button inside makes it keyboard navigable by default.
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.setAttribute("aria-label", `Copy ${hex} to clipboard`);
+        btn.dataset.hex = hex;
+
+        const color = document.createElement("div");
+        color.className = "swatch-color";
+        color.style.background = hex;
+
+        const meta = document.createElement("div");
+        meta.className = "swatch-meta";
+
+        const hexRow = document.createElement("div");
+        hexRow.className = "hexrow";
+        const hexEl = document.createElement("div");
+        hexEl.className = "hex";
+        hexEl.textContent = hex;
+
+        const hint = document.createElement("div");
+        hint.className = "copyhint";
+        hint.textContent = "Click to copy";
+
+        hexRow.appendChild(hexEl);
+        hexRow.appendChild(hint);
+
+        const badges = document.createElement("div");
+        badges.className = "badges";
+
+        badges.appendChild(makeBadge("AA vs white", ratioWhite, passWhite));
+        badges.appendChild(makeBadge("AA vs black", ratioBlack, passBlack));
+
+        meta.appendChild(hexRow);
+        meta.appendChild(badges);
+
+        btn.appendChild(color);
+        btn.appendChild(meta);
+        item.appendChild(btn);
+        frag.appendChild(item);
+      });
+
+      // Fade/slide refresh: toggle class to trigger transition.
+      el.paletteCardAnim = el.paletteCardAnim || $("#paletteCard");
+      el.paletteCardAnim.classList.remove("is-on");
+      requestAnimationFrame(() => {
+        el.swatches.replaceChildren(frag);
+        requestAnimationFrame(() => el.paletteCardAnim.classList.add("is-on"));
+      });
+    }
+
+    function makeBadge(label, ratio, pass) {
+      const b = document.createElement("span");
+      b.className = "badge " + (pass ? "pass" : "fail");
+
+      // Screen-reader friendly: include pass/fail and ratio.
+      const sr = pass ? "Pass" : "Fail";
+      b.setAttribute("role", "status");
+      b.setAttribute("aria-label", `${label}: ${sr}. Contrast ratio ${ratio.toFixed(2)} to 1.`);
+
+      const text = document.createElement("span");
+      text.textContent = label;
+
+      const strong = document.createElement("strong");
+      strong.textContent = ratio.toFixed(2) + ":1";
+
+      b.appendChild(text);
+      b.appendChild(strong);
+      return b;
+    }
+
+    function renderPreview(fonts) {
+      // Render preview content with generated fonts applied via CSS variables on the container.
+      // This avoids affecting UI chrome.
+      el.preview.style.fontFamily = `var(--gen-body)`;
+      el.preview.innerHTML = `
+        <div style="display:grid; gap:10px;">
+          <div>
+            <h1 style="font-family: var(--gen-heading);">Aesthetic, instantly.</h1>
+            <div class="subhead" style="font-family: var(--gen-body);">
+              Live preview (neutral background). Palette is displayed separately.
+            </div>
+          </div>
+          <p style="font-family: var(--gen-body);">
+            This pairing is chosen from a curated set to keep results consistently high-quality.
+            Export CSS variables for your colors and use the selected font families in your project.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="samplebtn" style="font-family: var(--gen-body);">
+              Sample button
+            </button>
+            <span style="font-size:13px; color:#6B7280;">
+              Tip: click any swatch to copy its HEX value.
+            </span>
+          </div>
+        </div>
+      `;
+
+      el.headingFontName.textContent = fonts.heading;
+      el.bodyFontName.textContent = fonts.body;
+    }
+
+    function exportCSSVars() {
+      const lines = [];
+      lines.push(":root {");
+      state.palette.forEach((hex, i) => lines.push(`  --color-${i + 1}: ${hex};`));
+      lines.push(`  --font-heading: "${state.fonts.heading}", system-ui, -apple-system, Segoe UI, Roboto, Arial, serif;`);
+      lines.push(`  --font-body: "${state.fonts.body}", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;`);
+      lines.push("}");
+      return lines.join("\n");
+    }
+
+    function exportJSON() {
+      const obj = {
+        palette: state.palette.slice(),
+        fonts: { heading: state.fonts.heading, body: state.fonts.body }
+      };
+      return JSON.stringify(obj, null, 2);
+    }
+
+    function renderExports() {
+      el.cssOut.textContent = exportCSSVars();
+      el.jsonOut.textContent = exportJSON();
+    }
+
+    function renderFavorites() {
+      const list = state.favorites.slice().sort((a, b) => b.createdAt - a.createdAt);
+      el.favList.innerHTML = "";
+
+      if (list.length === 0) {
+        el.favEmpty.style.display = "block";
+        return;
+      }
+      el.favEmpty.style.display = "none";
+
+      const frag = document.createDocumentFragment();
+
+      list.forEach((fav) => {
+        const item = document.createElement("div");
+        item.className = "favitem";
+
+        const row = document.createElement("div");
+        row.className = "favrow";
+
+        const meta = document.createElement("div");
+        meta.className = "favmeta";
+
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = `${fav.fonts.heading} + ${fav.fonts.body}`;
+
+        const desc = document.createElement("div");
+        desc.className = "desc";
+        desc.textContent = `${fav.palette.length} colors • saved ${new Date(fav.createdAt).toLocaleString()}`;
+
+        meta.appendChild(title);
+        meta.appendChild(desc);
+
+        const btns = document.createElement("div");
+        btns.style.display = "flex";
+        btns.style.gap = "10px";
+        btns.style.flexWrap = "wrap";
+        btns.style.justifyContent = "flex-end";
+
+        const applyBtn = document.createElement("button");
+        applyBtn.type = "button";
+        applyBtn.textContent = "Apply";
+        applyBtn.setAttribute("aria-label", `Apply favorite ${title.textContent}`);
+        applyBtn.addEventListener("click", () => applyCombo(fav, { announce: true }));
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "danger";
+        delBtn.textContent = "Delete";
+        delBtn.setAttribute("aria-label", `Delete favorite ${title.textContent}`);
+        delBtn.addEventListener("click", () => deleteFavorite(fav.id));
+
+        btns.appendChild(applyBtn);
+        btns.appendChild(delBtn);
+
+        row.appendChild(meta);
+        row.appendChild(btns);
+
+        const dots = document.createElement("div");
+        dots.className = "favswatches";
+        fav.palette.slice(0, 6).forEach(hex => {
+          const dot = document.createElement("span");
+          dot.className = "favdot";
+          dot.style.background = hex;
+          dot.title = hex;
+          dots.appendChild(dot);
+        });
+
+        item.appendChild(row);
+        item.appendChild(dots);
+        frag.appendChild(item);
+      });
+
+      el.favList.appendChild(frag);
+    }
+
+    // ---------- Actions ----------
+    function applyCombo(combo, opts = {}) {
+      const normalized = normalizeCombo(combo);
+
+      state.palette = normalized.palette.slice();
+      state.fonts = { ...normalized.fonts };
+
+      applyFonts(state.fonts);
+      renderPalette(state.palette);
+      renderPreview(state.fonts);
+      renderExports();
+
+      if (opts.announce) showToast("Applied favorite");
+    }
+
+    function shuffleAll() {
+      state.presetName = "Random";
+      setPresetChips(null);
+
+      state.palette = getRandomPalette();
+      state.fonts = pickFontPair();
+
+      applyFonts(state.fonts);
+      renderPalette(state.palette);
+      renderPreview(state.fonts);
+      renderExports();
+
+      showToast("Shuffled");
+    }
+
+    function saveFavorite() {
+      // Avoid saving duplicates: compare palette+fonts.
+      const sig = signatureOf(state.palette, state.fonts);
+
+      const exists = state.favorites.some(f => signatureOf(f.palette, f.fonts) === sig);
+      if (exists) {
+        showToast("Already saved");
+        return;
+      }
+
+      const combo = normalizeCombo({
+        id: cryptoRandomId(),
+        createdAt: Date.now(),
+        palette: state.palette,
+        fonts: state.fonts
+      });
+
+      state.favorites.unshift(combo);
+      saveFavorites(state.favorites);
+      renderFavorites();
+      showToast("Saved to favorites");
+    }
+
+    function deleteFavorite(id) {
+      state.favorites = state.favorites.filter(f => f.id !== id);
+      saveFavorites(state.favorites);
+      renderFavorites();
+      showToast("Deleted");
+    }
+
+    function signatureOf(palette, fonts) {
+      return JSON.stringify({
+        p: (palette || []).map(String),
+        h: String(fonts?.heading || ""),
+        b: String(fonts?.body || "")
+      });
+    }
+
+    async function copyCSSVars() {
+      const text = exportCSSVars();
+      const ok = await copyText(text);
+      showToast(ok ? "CSS copied" : "Copy failed");
+    }
+
+    async function copyJSON() {
+      const text = exportJSON();
+      const ok = await copyText(text);
+      showToast(ok ? "JSON copied" : "Copy failed");
+    }
+
+    function downloadJSON() {
+      const text = exportJSON();
+      downloadTextFile("aesthetic.json", text, "application/json");
+      showToast("Downloaded JSON");
+    }
+
+    // ---------- Theme ----------
+    function setTheme(theme) {
+      state.theme = theme === "dark" ? "dark" : "light";
+      document.documentElement.classList.toggle("theme-dark", state.theme === "dark");
+      document.documentElement.classList.toggle("theme-light", state.theme !== "dark");
+
+      // Keep switch button in sync for screen readers.
+      const pressed = state.theme === "dark";
+      el.themeSwitch.setAttribute("aria-pressed", String(pressed));
+      el.themeToggle.checked = pressed;
+
+      writeSettings({ theme: state.theme });
+    }
+
+    // ---------- Presets ----------
+    function applyPreset(name) {
+      const preset = PRESETS[name];
+      if (!preset) return;
+
+      state.presetName = name;
+      setPresetChips(name);
+
+      applyCombo({
+        palette: preset.palette,
+        fonts: preset.fonts
+      });
+
+      showToast(`${name} applied`);
+    }
+
+    function setPresetChips(activeNameOrNull) {
+      el.presetChips.forEach(ch => {
+        const on = (activeNameOrNull && ch.dataset.preset === activeNameOrNull);
+        ch.setAttribute("aria-pressed", String(!!on));
+      });
+    }
+
+    // ---------- Events ----------
+    function wireEvents() {
+      el.btnShuffle.addEventListener("click", shuffleAll);
+      el.btnSave.addEventListener("click", saveFavorite);
+      el.btnCopyCSS.addEventListener("click", copyCSSVars);
+      el.btnExportJSON.addEventListener("click", () => {
+        // UX: Export JSON button defaults to download (copy available in Export card).
+        downloadJSON();
+      });
+
+      el.btnCopyCSSInline.addEventListener("click", copyCSSVars);
+      el.btnCopyJSON.addEventListener("click", copyJSON);
+      el.btnDownloadJSON.addEventListener("click", downloadJSON);
+
+      // Swatch click delegation: copy HEX
+      el.swatches.addEventListener("click", async (e) => {
+        const btn = e.target.closest("button[data-hex]");
+        if (!btn) return;
+        const hex = btn.dataset.hex;
+        const ok = await copyText(hex);
+        showToast(ok ? `Copied ${hex}` : "Copy failed");
+      });
+
+      // Theme switch
+      el.themeSwitch.addEventListener("click", () => {
+        setTheme(state.theme === "dark" ? "light" : "dark");
+      });
+
+      // Preset chips
+      el.presetChips.forEach(ch => {
+        ch.addEventListener("click", () => applyPreset(ch.dataset.preset));
+      });
+
+      // Keyboard shortcuts:
+      // Space = Shuffle, S = Save current, C = Copy CSS variables
+      // Edge case: do not hijack typing in inputs (none currently) or when user is focused on a button and presses Space (would also "click" it).
+      window.addEventListener("keydown", (e) => {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+        const isTypingContext = ["input", "textarea", "select"].includes(tag) || e.target?.isContentEditable;
+
+        if (isTypingContext) return;
+
+        // Space: prevent page scroll when used as shortcut.
+        if (e.code === "Space") {
+          e.preventDefault();
+          shuffleAll();
+          return;
+        }
+
+        // Use lowercase for key comparisons.
+        const k = (e.key || "").toLowerCase();
+        if (k === "s") { e.preventDefault(); saveFavorite(); }
+        if (k === "c") { e.preventDefault(); copyCSSVars(); }
+      });
+    }
+
+    // ---------- Init ----------
+    function init() {
+      // Motion: enable initial animations after first paint
+      requestAnimationFrame(() => {
+        $$(".anim-in").forEach(node => node.classList.add("is-on"));
+      });
+
+      // Load persisted theme
+      const settings = readSettings();
+      setTheme(settings.theme);
+
+      // Load favorites
+      state.favorites = loadFavorites();
+      renderFavorites();
+
+      // Acceptance: page loads with “Minimal” default applied
+      applyPreset("Minimal");
+
+      wireEvents();
+    }
+
+    init();
+  </script>
 </body>
 </html>
+
+
+
+
+
